@@ -1,0 +1,9 @@
+logs/
+__pycache__/
+world/
+banned*.json
+eula.txt
+ops.json
+server.jar
+usercache.json
+whitelist.json
