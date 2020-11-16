@@ -30,11 +30,18 @@ def main():
         if data:
             data = data[0]
             packet.append(data)
-            if data & ~0b10000000:
+
+            # If we see that we got VarInt, start parsing
+            if data & ~0b01111111 == 0:
                 length = mc.get_packet_length(packet)
-                print(len(packet))
-                print(length)
-                packet = sock.recv(length)
+
+                # Hack to make sure socket gets all bytes
+                packet = []
+                while len(packet) < length:
+                    packet.append(sock.recv(1)[0])
+                assert len(packet) == length, "Length is somehow different! (%s != %s)" % (len(packet), length)
+
+                # Now that we have the packet handle it
                 mc.handle_packet(packet)
                 packet = []
 

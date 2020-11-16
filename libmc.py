@@ -1,5 +1,6 @@
 from mctypes import ParseVarInt, ParseString
 from enum import Enum
+import zlib
 
 class Login(Enum):
     Disconnect = 0x00
@@ -13,6 +14,9 @@ class Play(Enum):
     ServerDifficulty = 0x0d
     PlayerAbilities = 0x2e
     HeldItemChange = 0x3d
+    DeclareRecipes = 0x54
+    Tags = 0x55
+    CloseWindow = 0x13
 
 class libmc():
     def __init__(self):
@@ -37,7 +41,8 @@ class libmc():
     def handle_SetCompression(self, packet):
         """Threshold (VarInt): Maximum size of a packet before it is compressed"""
         threshold, packet = ParseVarInt(packet, consume=True)
-        print("Max packet size before compression: %s" % threshold)
+        del threshold
+        print("Login.SetCompression")
         self.compression = True
         return packet
 
@@ -77,11 +82,34 @@ class libmc():
         print("Play.HeldItemChange")
         return []
 
+    def handle_DeclareRecipes(self, packet):
+        """TODO"""
+        print("Play.DeclareRecipes")
+        return []
+
+    def handle_Tags(self, packet):
+        """TODO"""
+        print("Play.Tags")
+        return []
+
+    def handle_CloseWindow(self, packet):
+        """TODO"""
+        # This is the ID of the window that was closed. 0 for inventory. 
+        print("Play.CloseWindow")
+        return []
+
+
     def handle_packet(self, packet):
         """Parse packet id and call appropriate handler"""
         if self.compression:
             compression_len, packet = ParseVarInt(packet, consume=True)
-            assert compression_len == 0, "This needs to be handled now, fuckboi!"
+
+            # if we have compressed data decompress it
+            if compression_len != 0:
+                if packet:
+                    packet = zlib.decompress(bytes(packet))
+                else:
+                    return
             
         packet_id, packet = ParseVarInt(packet, consume=True)
         try:

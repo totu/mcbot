@@ -43,7 +43,7 @@ def PackUnsignedShort(_int):
 if __name__ == "__main__":
     assert 129 == ParseVarInt([ord(x) for x in PackVarInt(129)])
     assert 128 != ParseVarInt([ord(x) for x in PackVarInt(129)])
-    assert 171 == ParseVarInt([ord(x) for x in PackVarInt(171)])
-    print(ParseVarInt([ord(x) for x in PackVarInt(171)]))
-    print(PackVarInt(171))
-    print(([bin(ord(x)) for x in PackVarInt(171)]))
+    assert 172 == ParseVarInt([ord(x) for x in PackVarInt(172)])
+    print(ParseVarInt([ord(x) for x in PackVarInt(172)]))
+    print(PackVarInt(172))
+    print(([bin(ord(x)) for x in PackVarInt(172)]))
