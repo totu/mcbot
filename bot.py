@@ -32,11 +32,11 @@ def main():
             packet.append(data)
             if data & ~0b10000000:
                 length = mc.get_packet_length(packet)
+                print(len(packet))
                 print(length)
                 packet = sock.recv(length)
                 mc.handle_packet(packet)
                 packet = []
-                
 
 if __name__ == "__main__":
     main()

@@ -17,7 +17,7 @@ def ParseVarInt(packet, consume=False):
     for i in range(5):
         read = packet[i]
         value = read & 0b011111111
-        result += value << 7 * i
+        result |= value << 7 * i
 
         if read & 0b10000000 == 0:
             break
@@ -37,7 +37,13 @@ def ParseString(packet, length, consume=False):
         return string, packet[length+1:]
     return string
 
-
-
 def PackUnsignedShort(_int):
     return [chr(x) for x in struct.pack(">h", _int)]
+
+if __name__ == "__main__":
+    assert 129 == ParseVarInt([ord(x) for x in PackVarInt(129)])
+    assert 128 != ParseVarInt([ord(x) for x in PackVarInt(129)])
+    assert 171 == ParseVarInt([ord(x) for x in PackVarInt(171)])
+    print(ParseVarInt([ord(x) for x in PackVarInt(171)]))
+    print(PackVarInt(171))
+    print(([bin(ord(x)) for x in PackVarInt(171)]))
