@@ -12,37 +12,32 @@ def PackVarInt(_int):
             break
     return [chr(x) for x in result]
 
-def ParseVarInt(sock):
+def ParseVarInt(packet, consume=False):
     result = 0
     for i in range(5):
-        read = ord(packet[i])
+        read = packet[i]
         value = read & 0b011111111
         result += value << 7 * i
 
         if read & 0b10000000 == 0:
             break
-    return result
 
+    # If consume is set only return remaining packet
+    if consume:
+        return result, packet[i+1:]
+
+    return result
 
 def PackString(str):
     return PackVarInt(len(str)) + [x for x in str]
 
+def ParseString(packet, length, consume=False):
+    string = "".join([chr(x) for x in packet[:length]])
+    if consume:
+        return string, packet[length+1:]
+    return string
+
+
+
 def PackUnsignedShort(_int):
     return [chr(x) for x in struct.pack(">h", _int)]
-
-
-if __name__ == "__main__":
-    print("pack")
-    print(127, PackVarInt(127))
-    print(128, PackVarInt(128))
-    print(129, PackVarInt(129))
-    print("read")
-    print(127, ParseVarInt(PackVarInt(127)))
-    print(128, ParseVarInt(PackVarInt(128)))
-    print(129, ParseVarInt(PackVarInt(129)))
-    print("string")
-    print(PackString("127.0.0.1"))
-    print(PackString("0"))
-    print("port")
-    print(PackUnsignedShort(26655))
-    print(PackUnsignedShort(22))
