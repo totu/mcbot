@@ -4,11 +4,15 @@ import struct
 from mctypes import *
 import libmc
 
+from configparser import ConfigParser
+
 def main():
     """do the thing"""
+    config = ConfigParser()
+    config.read('conf')
+    host = config.get('server', 'ip')
+    port = int(config.get('server', 'port'))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    port = 25565
-    host = "127.0.0.1"
     sock.connect((host, port))
 
     # Handshake

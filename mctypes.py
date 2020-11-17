@@ -51,3 +51,16 @@ if __name__ == "__main__":
     assert 128 != ParseVarInt([ord(x) for x in PackVarInt(129)])
     assert 172 == ParseVarInt([ord(x) for x in PackVarInt(172)])
     assert 9005 == ParseVarInt([ord(x) for x in PackVarInt(9005)])
+    _long = [0, 0, 0, 0, 16, 0, 0 ,0]
+    _long = ParseLong(_long)
+    x = 1
+    y = 2
+    z = 3
+    one = ((x & 0x3FFFFFF) << 38) | ((z & 0x3FFFFFF) << 12) | (y & 0xFFF)
+    print(len(bin(0x3FFFFFF)))
+    x = one >> 38
+    y = one & 0xFFF
+    z = (one << 26 >> 38)
+    print(bin(one))
+    print(bin(x), bin(z), bin(y))
+    print(x, y, z)
