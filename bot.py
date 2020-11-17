@@ -24,25 +24,30 @@ def main():
     # Main loop
     packet = []
 
-    mc = libmc.libmc()
+    mc = libmc.libmc(sock)
     while True:
-        data = sock.recv(1)
+        data = mc.recv(1)
         if data:
             data = data[0]
             packet.append(data)
 
             # If we see that we got VarInt, start parsing
-            if data & ~0b01111111 == 0:
+            if data & 0b10000000 == 0:
                 length = mc.get_packet_length(packet)
 
                 # Hack to make sure socket gets all bytes
                 packet = []
                 while len(packet) < length:
-                    packet.append(sock.recv(1)[0])
+                    packet.append(mc.recv(1)[0])
                 assert len(packet) == length, "Length is somehow different! (%s != %s)" % (len(packet), length)
+                print("%s bytes: " % length, end="")
 
                 # Now that we have the packet handle it
-                mc.handle_packet(packet)
+                try:
+                    mc.handle_packet(packet)
+                except:
+                    print([hex(x) for x in packet])
+                    mc.handle_packet(packet)
                 packet = []
 
 if __name__ == "__main__":
