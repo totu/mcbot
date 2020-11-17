@@ -1,5 +1,7 @@
+import _thread
+import time
 import socket
-from mctypes import PackVarInt, ParseVarInt, ParseString, ParseLong, PackCoords, ParseCoords, PackString, PackUnsignedShort
+from mctypes import *
 from enum import Enum
 import zlib
 
@@ -51,6 +53,7 @@ class libmc():
         self.compression = False
         self.state = Login
         self.position = []
+        self.accepted_teleport = 0
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
         print("MCBot initialized")
@@ -62,10 +65,8 @@ class libmc():
         if self.compression:
             packet = PackVarInt(0) + packet
 
-        hex_print(packet)
         packet = [len(packet)] + packet
         packet = [ord(x) if isinstance(x, str) else x for x in packet]
-        hex_print(packet)
         self.sock.send(bytes(packet))
     
     def get_packet_length(self, data):
@@ -174,9 +175,21 @@ class libmc():
         return []
 
     def handle_PlayerPositionAndLook(self, packet):
-        """TODO"""
-        print("Play.PlayerPositionAndLook")
-        return []
+        x, packet = ParseDouble(packet, consume=True)
+        y, packet = ParseDouble(packet, consume=True)
+        z, packet = ParseDouble(packet, consume=True)
+        yaw, packet = ParseFloat(packet, consume=True)
+        pitch, packet = ParseFloat(packet, consume=True)
+        # Instead of parsing flags we just skip a byte
+        # flags, packet = ParseByte(packet, consume=True)
+        packet = packet[1:]
+        teleport_id, packet = ParseVarInt(packet, consume=True)
+        print("Play.PlayerPositionAndLook (x:%s, y:%s, z:%s, teleport:%s)" % (x, y, z, teleport_id))
+        self.position = [x, y, z]
+        self.pitch = pitch
+        self.yaw = yaw
+        self.send_TeleportConfirm(teleport_id)
+        return packet
 
     def handle_WorldBorder(self, packet):
         """TODO"""
@@ -189,19 +202,21 @@ class libmc():
         return []
 
     def handle_SpawnPosition(self, packet):
-        print("Play.SpawnPosition")
+        """TODO"""
         position, packet = ParseLong(packet, consume=True)
         x, y, z = ParseCoords(position)
+        print("Play.SpawnPosition (x:%s, y:%s, z:%s)")
         self.position = [x, y, z]
-        return packet
+        return []
 
     def send_PlayerPosition(self, x, y, z):
-        print("Sending PlayerPosition (%s, %s, %s)" % (x, y, z))
-        packet = PackVarInt(0x10) + PackCoords(x, y, z)
+        print("Sending PlayerPosition (x:%s, y:%s, z:%s)" % (x, y, z))
+        self.position = [x, y, z]
+        # y = y - 1.62
+        packet = PackVarInt(0x10) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackBool(True)
         self.send(packet)
 
     def handle_KeepAlive(self, packet):
-        """TODO"""
         print("Play.KeepAlive")
         self.send_KeepAlive(packet)
         return []
@@ -294,13 +309,43 @@ class libmc():
         packet = PackVarInt(0x03) + PackVarInt(action_id)
         self.send(packet)
 
+    def send_TeleportConfirm(self, teleport_id):
+        """Teleport Confirm"""
+        print("Sending Server TeleportConfirm")
+        packet = PackVarInt(0x00) + PackVarInt(teleport_id)
+        self.send(packet)
+        self.accepted_teleport = teleport_id
+
     def respawn(self):
         self.send_ClientStatus(0)
+
+    def jiggle(self, x, y):
+        del x, y
+        while True:
+            x, y, z = self.position
+            if y > 4:
+                y = y - 1
+            move = 10
+            x = x - move
+            sleep = 0.01
+            time.sleep(sleep)
+            self.send_PlayerPosition(x, y, z)
+            y = y + move
+            time.sleep(sleep)
+            self.send_PlayerPosition(x, y, z)
+            x = x + move
+            time.sleep(sleep)
+            self.send_PlayerPosition(x, y, z)
+            y = y - move
+            time.sleep(sleep)
+            self.send_PlayerPosition(x, y, z)
+
 
     def run(self):
         print("MCBot running...")
         self.send_HandShake()
         self.send_LoginStart()
+        jiggling = False
 
         packet = []
         while True:
@@ -327,3 +372,8 @@ class libmc():
                         print([hex(x) for x in packet])
                         self.handle_packet(packet)
                     packet = []
+
+
+            if self.position and self.accepted_teleport and not jiggling:
+                jiggling = True
+                _thread.start_new_thread(self.jiggle, (0, 0, ))

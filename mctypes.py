@@ -40,6 +40,29 @@ def ParseString(packet, length, consume=False):
 def PackUnsignedShort(value):
     return [chr(x) for x in struct.pack(">h", value)]
 
+def ParseDouble(packet, consume=False):
+    packet = [ord(x) if isinstance(x, str) else x for x in packet]
+    value = struct.unpack(">d", bytes(packet[:8]))[0]
+    if consume:
+        return value, packet[8:]
+    return value 
+
+def PackDouble(value):
+    return [chr(x) for x in struct.pack(">d", value)]
+
+def PackBool(boolean):
+    return [chr(x) for x in struct.pack(">?", boolean)]
+
+def ParseFloat(packet, consume=False):
+    packet = [ord(x) if isinstance(x, str) else x for x in packet]
+    value = struct.unpack(">f", bytes(packet[:4]))[0]
+    if consume:
+        return value, packet[4:]
+    return value 
+
+def ParseByte(packet, consume=False):
+    assert False, "This has not been implemented"
+
 def ParseLong(packet, consume=False):
     packet = [ord(x) if isinstance(x, str) else x for x in packet]
     value = struct.unpack(">q", bytes(packet))[0]
@@ -64,7 +87,7 @@ def ParseCoords(value):
     return x, y, z
 
 def PackCoords(x, y, z):
-    value = ((x & 0x3FFFFFF) << 38) | ((z & 0x3FFFFFF) << 12) | (y & 0xFFF)
+    value = ((int(x) & 0x3FFFFFF) << 38) | ((int(z) & 0x3FFFFFF) << 12) | (int(y) & 0xFFF)
     packet = PackLong(value)
     return packet
 
