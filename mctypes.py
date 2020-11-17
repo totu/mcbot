@@ -1,10 +1,10 @@
 """MC types"""
 import struct 
 
-def PackVarInt(_int):
+def PackVarInt(value):
     result = []
     for i in range(5):
-        number = _int >> 7 * i 
+        number = value >> 7 * i 
         if number & ~0x7f != 0:
             result.append((number & 0x7f) + 0x80)
         else:
@@ -37,30 +37,47 @@ def ParseString(packet, length, consume=False):
         return string, packet[length+1:]
     return string
 
-def PackUnsignedShort(_int):
-    return [chr(x) for x in struct.pack(">h", _int)]
+def PackUnsignedShort(value):
+    return [chr(x) for x in struct.pack(">h", value)]
 
 def ParseLong(packet, consume=False):
-    _long = struct.unpack(">q", bytes(packet))[0]
+    packet = [ord(x) if isinstance(x, str) else x for x in packet]
+    value = struct.unpack(">q", bytes(packet))[0]
     if consume:
-        return _long, packet[8:]
-    return _long 
+        return value, packet[8:]
+    return value 
+
+def PackLong(value):
+    packet = [chr(x) for x in struct.pack(">q", value)]
+    return packet
+
+def ParseCoords(value):
+    x = value >> 38
+    y = value & 0xfff
+    z = ((value & 0x3ffffff000) << 26) >> 38
+    if x >= 2**25:
+        x = x - 2**26
+    if y >= 2**11:
+        y = y - 2**12
+    if z >= 2**25:
+        z = z - 2**26
+    return x, y, z
+
+def PackCoords(x, y, z):
+    value = ((x & 0x3FFFFFF) << 38) | ((z & 0x3FFFFFF) << 12) | (y & 0xFFF)
+    packet = PackLong(value)
+    return packet
 
 if __name__ == "__main__":
     assert 129 == ParseVarInt([ord(x) for x in PackVarInt(129)])
     assert 128 != ParseVarInt([ord(x) for x in PackVarInt(129)])
     assert 172 == ParseVarInt([ord(x) for x in PackVarInt(172)])
     assert 9005 == ParseVarInt([ord(x) for x in PackVarInt(9005)])
-    _long = [0, 0, 0, 0, 16, 0, 0 ,0]
-    _long = ParseLong(_long)
-    x = 1
-    y = 2
-    z = 3
-    one = ((x & 0x3FFFFFF) << 38) | ((z & 0x3FFFFFF) << 12) | (y & 0xFFF)
-    print(len(bin(0x3FFFFFF)))
-    x = one >> 38
-    y = one & 0xFFF
-    z = (one << 26 >> 38)
-    print(bin(one))
-    print(bin(x), bin(z), bin(y))
-    print(x, y, z)
+    x, y, z = ParseCoords(PackCoords(1,1,1)[0])
+    assert x == 1 and y == 1 and z == 1
+    x, y, z = ParseCoords(PackCoords(-500,-300,-1000)[0])
+    assert x == -500 and y == -300 and z == -1000
+    x, y, z = ParseCoords(PackCoords(620, 1200, 34000)[0])
+    assert x == 620 and y == 1200 and z == 34000
+    assert 123 == ParseLong(PackLong(123))
+    assert 4223720368477807 == ParseLong(PackLong(4223720368477807))

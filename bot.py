@@ -1,58 +1,21 @@
 """Minecraft bot"""
-import socket
 import struct
-from mctypes import *
 import libmc
-
 from configparser import ConfigParser
 
-def main():
-    """do the thing"""
+# Main loop
+def setup_bot(name):
     config = ConfigParser()
     config.read('conf')
     host = config.get('server', 'ip')
     port = int(config.get('server', 'port'))
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((host, port))
+    lib = libmc.libmc(name, host, port)
+    return lib
 
-    # Handshake
-    packet = PackVarInt(0) + PackVarInt(404) + PackString(host) + PackUnsignedShort(port) + PackVarInt(2)
-    packet = bytes([len(packet)] + [ord(x) for x in packet])
-    sock.send(packet)
-
-    # Login start
-    packet = PackVarInt(0) + PackString("top1_2_new")
-    packet = bytes([len(packet)] + [ord(x) for x in packet])
-    sock.send(packet)
-
-    # Main loop
-    packet = []
-
-    mc = libmc.libmc(sock)
-    while True:
-        data = mc.recv(1)
-        if data:
-            data = data[0]
-            packet.append(data)
-
-            # If we see that we got VarInt, start parsing
-            if data & 0b10000000 == 0:
-                length = mc.get_packet_length(packet)
-
-                # Hack to make sure socket gets all bytes
-                packet = []
-                while len(packet) < length:
-                    packet.append(mc.recv(1)[0])
-                assert len(packet) == length, "Length is somehow different! (%s != %s)" % (len(packet), length)
-                print("%s bytes: " % length, end="")
-
-                # Now that we have the packet handle it
-                try:
-                    mc.handle_packet(packet)
-                except:
-                    print([hex(x) for x in packet])
-                    mc.handle_packet(packet)
-                packet = []
+def main():
+    """do the thing"""
+    mc = setup_bot("top2_")
+    mc.run()
 
 if __name__ == "__main__":
     main()
