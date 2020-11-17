@@ -203,19 +203,13 @@ class libmc():
     def handle_KeepAlive(self, packet):
         """TODO"""
         print("Play.KeepAlive")
-        hex_print(packet)
         self.send_KeepAlive(packet)
         return []
 
     def send_KeepAlive(self, packet):
         print("Sending KeepAlive")
-        hex_print(packet)
         packet = PackVarInt(0x0e) + packet
-        hex_print(packet)
         self.send(packet)
-
-    # def send_KeepAlive(self, packet):
-    #     self.send(bytes(packet))
 
     def handle_Disconnect(self, packet):
         """TODO"""
@@ -246,6 +240,7 @@ class libmc():
     def handle_UpdateHealth(self, packet):
         """TODO"""
         print("Play.UpdateHealth")
+        self.respawn()
         return []
 
     def handle_BlockChange(self, packet):
@@ -292,6 +287,15 @@ class libmc():
         print("Sending Server LoginStart")
         packet = PackVarInt(0) + PackString(self.name)
         self.send(packet)
+
+    def send_ClientStatus(self, action_id):
+        """Client Status"""
+        print("Sending Server ClientStatus")
+        packet = PackVarInt(0x03) + PackVarInt(action_id)
+        self.send(packet)
+
+    def respawn(self):
+        self.send_ClientStatus(0)
 
     def run(self):
         print("MCBot running...")
