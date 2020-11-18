@@ -85,6 +85,10 @@ def ParseFloat(packet, consume=False):
         return value, packet[4:]
     return value 
 
+def PackFloat(value):
+    packet = [chr(x) for x in struct.pack(">f", value)]
+    return packet
+
 def ParseByte(packet, consume=False):
     assert False, "this is still bad and you should feel bad"
     value = struct.unpack(">b", bytes(packet[0]))

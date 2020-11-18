@@ -4,6 +4,7 @@ import socket
 from mctypes import *
 from enum import Enum
 import zlib
+import math
 
 class Login(Enum):
     Disconnect = 0x00
@@ -73,6 +74,18 @@ class libmc():
     def get_packet_length(self, data):
         length = ParseVarInt(data)
         return length
+
+    def calculate_yaw_and_pitch(self, x, y, z):
+        x0, y0, z0 = self.position
+        dx = x-x0
+        dy = y-y0
+        dz = z-z0
+        r = math.sqrt(dx*dx + dy*dy + dz*dz)
+        yaw = -math.atan2(dx,dz)/math.pi*180
+        if yaw < 0:
+            yaw = 360 + yaw
+        pitch = -math.asin(dy/r)/math.pi*180
+        return yaw, pitch
 
     def handle_SetCompression(self, packet):
         """Threshold (VarInt): Maximum size of a packet before it is compressed"""
@@ -405,6 +418,14 @@ class libmc():
         self.send(packet)
         self.accepted_teleport = teleport_id
 
+    def send_PlayerLook(self, yaw, pitch):
+        """Look at something"""
+        packet = PackVarInt(0x12) + PackFloat(yaw) + PackFloat(pitch) + PackBool(True)
+        self.send(packet)
+
+    def send_PlayerPositionAndLook(self, x, y, z, yaw, pitch):
+        pass
+
     def respawn(self):
         self.send_ClientStatus(0)
 
@@ -451,6 +472,8 @@ class libmc():
                     y = new_position(target_y, own_y)
                     z = new_position(target_z, own_z)
                     self.send_PlayerPosition(x, y, z)
+                    yaw, pitch = self.calculate_yaw_and_pitch(target_x, target_y, target_z)
+                    self.send_PlayerLook(yaw, pitch)
                     time.sleep(0.1)
 
     def run(self):
@@ -480,7 +503,7 @@ class libmc():
                     try:
                         self.handle_packet(packet)
                     except:
-                        print([hex(x) for x in packet])
+                        print("".join([chr(x) for x in packet]))
                         self.handle_packet(packet)
                     packet = []
 
