@@ -5,9 +5,6 @@ from mctypes import *
 from enum import Enum
 import zlib
 
-def hex_print(packet):
-    print([hex(x) if isinstance(x, int) else hex(ord(x)) for x in packet])
-
 class Login(Enum):
     Disconnect = 0x00
     EncryptionRequest = 0x01
@@ -44,9 +41,11 @@ class Play(Enum):
     UpdateHealth = 0x44
     BlockChange = 0x0b
     SetExperience = 0x43
+    EntityTeleport = 0x50
 
 class libmc():
     def __init__(self, name, host, port):
+        self.entities = {}
         self.name = name
         self.host = host
         self.port = port
@@ -136,7 +135,7 @@ class libmc():
     def handle_ChunkData(self, packet):
         """TODO"""
         # This is the ID of the window that was closed. 0 for inventory. 
-        print("Play.ChunkData")
+        # print("Play.ChunkData")
         return []
 
     def handle_EntityStatus(self, packet):
@@ -155,13 +154,24 @@ class libmc():
         return []
 
     def handle_PlayerInfo(self, packet):
-        """TODO"""
+        action = ParseVarInt(packet, consume=True)
+        number_of_players = ParseVarInt(packet, consume=True)
+        print(number_of_players)
         print("Play.PlayerInfo")
         return []
 
     def handle_SpawnPlayer(self, packet):
-        """TODO"""
-        print("Play.SpawnPlayer")
+        entity_id, packet = ParseVarInt(packet, consume=True)
+        uuid, packet = ParseUUID(packet, consume=True)
+        x, packet = ParseDouble(packet, consume=True)
+        y, packet = ParseDouble(packet, consume=True)
+        z, packet = ParseDouble(packet, consume=True)
+        if entity_id not in self.entities:
+            self.entities[entity_id] = {'position': [], 'uuid': uuid}
+        else:
+            self.entities[entity_id]['uuid'] = uuid
+        # ignoring yaw, pitch, and metadata
+        print("Play.SpawnPlayer (%s==%s, (x:%s, y:%s, z:%s)" % (entity_id, uuid, x, y ,z))
         return []
 
     def handle_EntityMetadata(self, packet):
@@ -198,7 +208,7 @@ class libmc():
 
     def handle_TimeUpdate(self, packet):
         """TODO"""
-        print("Play.TimeUpdate")
+        # print("Play.TimeUpdate")
         return []
 
     def handle_SpawnPosition(self, packet):
@@ -217,12 +227,12 @@ class libmc():
         self.send(packet)
 
     def handle_KeepAlive(self, packet):
-        print("Play.KeepAlive")
+        # print("Play.KeepAlive")
         self.send_KeepAlive(packet)
         return []
 
     def send_KeepAlive(self, packet):
-        print("Sending KeepAlive")
+        # print("Sending KeepAlive")
         packet = PackVarInt(0x0e) + packet
         self.send(packet)
 
@@ -233,9 +243,18 @@ class libmc():
         return []
 
     def handle_EntityRelativeMove(self, packet):
-        """TODO"""
-        print("Play.EntityRelativeMove")
-        return []
+        entity_id, packet = ParseVarInt(packet, consume=True)
+        x, packet = ParseShort(packet, consume=True)
+        y, packet = ParseShort(packet, consume=True)
+        z, packet = ParseShort(packet, consume=True)
+        # Not handling on_ground
+        packet = packet[1:]
+        # Calculating relative changes to coords
+        relative_x = x / (128 * 32)
+        relative_y = y / (128 * 32)
+        relative_z = z / (128 * 32)
+        # print("Play.EntityRelativeMove (%s: x:%s, y:%s, z:%s)" % (entity_id, relative_x, relative_y, relative_z))
+        return packet
 
     def handle_WindowItems(self, packet):
         """TODO"""
@@ -268,6 +287,19 @@ class libmc():
         print("Play.SetExperience")
         return []
 
+    def handle_EntityTeleport(self, packet):
+        entity_id, packet = ParseVarInt(packet, consume=True)
+        x, packet = ParseDouble(packet, consume=True)
+        y, packet = ParseDouble(packet, consume=True)
+        z, packet = ParseDouble(packet, consume=True)
+        # Not handling yaw, pitch, or on_ground
+        packet = packet[4:]
+        print("Play.EntityTeleport (%s: x:%s, y:%s, z:%s)" % (entity_id, x, y, z))
+        if entity_id not in self.entities:
+            self.entities[entity_id] = {"position": []}
+        self.entities[entity_id]["position"] = [x, y, z]
+        return packet
+
     def handle_packet(self, packet):
         """Parse packet id and call appropriate handler"""
         if self.compression:
@@ -281,14 +313,15 @@ class libmc():
         try:
             packet_id = str(self.state(packet_id))
         except ValueError:
-            print("Unknown packet ID %s for state %s" % (hex(packet_id), self.state))
+            #print("Unknown packet ID %s for state %s" % (hex(packet_id), self.state))
+            pass
 
         try:
             func = getattr(self, "handle_" + packet_id.split(".")[1])
             packet = func(packet=packet)
             assert len(packet) == 0
         except AttributeError:
-            print("Unknown packet: %s" % packet)
+            # print("Unknown packet: %s" % packet)
             pass
 
     def send_HandShake(self):
@@ -321,13 +354,14 @@ class libmc():
 
     def jiggle(self, x, y):
         del x, y
+        return
         while True:
             x, y, z = self.position
             if y > 4:
                 y = y - 1
             move = 10
             x = x - move
-            sleep = 0.01
+            sleep = 0.5
             time.sleep(sleep)
             self.send_PlayerPosition(x, y, z)
             y = y + move
@@ -363,7 +397,7 @@ class libmc():
                     while len(packet) < length:
                         packet.append(self.recv(1)[0])
                     assert len(packet) == length, "Length is somehow different! (%s != %s)" % (len(packet), length)
-                    print("%s bytes: " % length, end="")
+                    # print("%s bytes: " % length, end="")
 
                     # Now that we have the packet handle it
                     try:
@@ -373,7 +407,7 @@ class libmc():
                         self.handle_packet(packet)
                     packet = []
 
-
+            # print(self.entities)
             if self.position and self.accepted_teleport and not jiggling:
                 jiggling = True
                 _thread.start_new_thread(self.jiggle, (0, 0, ))

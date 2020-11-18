@@ -1,5 +1,10 @@
 """MC types"""
 import struct 
+import uuid
+
+def hex_print(packet):
+    print([hex(x) if isinstance(x, int) else hex(ord(x)) for x in packet])
+
 
 def PackVarInt(value):
     result = []
@@ -40,6 +45,13 @@ def ParseString(packet, length, consume=False):
 def PackUnsignedShort(value):
     return [chr(x) for x in struct.pack(">h", value)]
 
+def ParseShort(packet, consume=False):
+    packet = [ord(x) if isinstance(x, str) else x for x in packet]
+    value = struct.unpack(">h", bytes(packet[:2]))[0]
+    if consume:
+        return value, packet[2:]
+    return value 
+
 def ParseDouble(packet, consume=False):
     packet = [ord(x) if isinstance(x, str) else x for x in packet]
     value = struct.unpack(">d", bytes(packet[:8]))[0]
@@ -49,6 +61,13 @@ def ParseDouble(packet, consume=False):
 
 def PackDouble(value):
     return [chr(x) for x in struct.pack(">d", value)]
+
+def ParseBool(packet, consume=False):
+    packet = [ord(x) if isinstance(x, str) else x for x in packet]
+    value = struct.unpack(">?", bytes(packet[0]))[0]
+    if consume:
+        return value, packet[1:]
+    return value 
 
 def PackBool(boolean):
     return [chr(x) for x in struct.pack(">?", boolean)]
@@ -90,6 +109,12 @@ def PackCoords(x, y, z):
     value = ((int(x) & 0x3FFFFFF) << 38) | ((int(z) & 0x3FFFFFF) << 12) | (int(y) & 0xFFF)
     packet = PackLong(value)
     return packet
+
+def ParseUUID(packet, consume):
+    string = uuid.UUID(bytes=bytes(packet[:16]))
+    if consume:
+        return string, packet[17:]
+    return string
 
 if __name__ == "__main__":
     assert 129 == ParseVarInt([ord(x) for x in PackVarInt(129)])
