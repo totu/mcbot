@@ -42,9 +42,11 @@ class Play(Enum):
     BlockChange = 0x0b
     SetExperience = 0x43
     EntityTeleport = 0x50
+    EntityLookAndRelativeMove = 0x29
 
 class libmc():
     def __init__(self, name, host, port):
+        self.names = {}
         self.entities = {}
         self.name = name
         self.host = host
@@ -98,38 +100,38 @@ class libmc():
 
     def handle_PluginMessage(self, packet):
         """TODO"""
-        print("Play.PluginMessage")
+        # print("Play.PluginMessage")
         return []
 
     def handle_ServerDifficulty(self, packet):
         """TODO"""
-        print("Play.ServerDifficulty")
+        # print("Play.ServerDifficulty")
         return []
 
     def handle_PlayerAbilities(self, packet):
         """TODO"""
-        print("Play.PlayerAbilities")
+        # print("Play.PlayerAbilities")
         return []
 
     def handle_HeldItemChange(self, packet):
         """TODO"""
-        print("Play.HeldItemChange")
+        # print("Play.HeldItemChange")
         return []
 
     def handle_DeclareRecipes(self, packet):
         """TODO"""
-        print("Play.DeclareRecipes")
+        # print("Play.DeclareRecipes")
         return []
 
     def handle_Tags(self, packet):
         """TODO"""
-        print("Play.Tags")
+        # print("Play.Tags")
         return []
 
     def handle_CloseWindow(self, packet):
         """TODO"""
         # This is the ID of the window that was closed. 0 for inventory. 
-        print("Play.CloseWindow")
+        # print("Play.CloseWindow")
         return []
 
     def handle_ChunkData(self, packet):
@@ -140,24 +142,42 @@ class libmc():
 
     def handle_EntityStatus(self, packet):
         """TODO"""
-        print("Play.EntityStatus")
+        # print("Play.EntityStatus")
         return []
 
     def handle_DeclareCommands(self, packet):
         """TODO"""
-        print("Play.DeclareCommands")
+        # print("Play.DeclareCommands")
         return []
 
     def handle_UnlockRecipes(self, packet):
         """TODO"""
-        print("Play.UnlockRecipes")
+        # print("Play.UnlockRecipes")
         return []
+        
+    def _player_action_zero(self, count, packet):
+        for i in range(int(len(packet)/count)):
+            pckt = packet[i:]
+            uuid, pckt = ParseUUID(pckt, consume=True)
+            length = pckt[0]
+            pckt = pckt[1:]
+            name = ParseString(pckt, length)
+            self.names[uuid] = name
 
     def handle_PlayerInfo(self, packet):
-        action = ParseVarInt(packet, consume=True)
-        number_of_players = ParseVarInt(packet, consume=True)
-        print(number_of_players)
-        print("Play.PlayerInfo")
+        action, packet = ParseVarInt(packet, consume=True)
+        number_of_players, packet = ParseVarInt(packet, consume=True)
+        if number_of_players:
+            players = int(len(packet) / number_of_players)
+            if action == 0:
+                self._player_action_zero(players, packet)
+            elif action == 2:
+                # this is ping info
+                pass
+            else:
+                print("Play.PlayerInfo")
+                print(action)
+                hex_print(packet)
         return []
 
     def handle_SpawnPlayer(self, packet):
@@ -166,23 +186,49 @@ class libmc():
         x, packet = ParseDouble(packet, consume=True)
         y, packet = ParseDouble(packet, consume=True)
         z, packet = ParseDouble(packet, consume=True)
-        if entity_id not in self.entities:
-            self.entities[entity_id] = {'position': [], 'uuid': uuid}
-        else:
-            self.entities[entity_id]['uuid'] = uuid
+        self.entities[entity_id] = {'position': [x, y, z], 'uuid': uuid}
         # ignoring yaw, pitch, and metadata
-        print("Play.SpawnPlayer (%s==%s, (x:%s, y:%s, z:%s)" % (entity_id, uuid, x, y ,z))
+        # print("Play.SpawnPlayer (%s==%s, (x:%s, y:%s, z:%s)" % (entity_id, uuid, x, y ,z))
         return []
 
     def handle_EntityMetadata(self, packet):
         """TODO"""
-        print("Play.EntityMetadata")
+        # print("Play.EntityMetadata")
         return []
 
     def handle_EntityProperties(self, packet):
-        """TODO"""
-        print("Play.EntityProperties")
-        return []
+        entity_id, packet = ParseVarInt(packet, consume=True)
+        number_of_properties, packet = ParseInt(packet, consume=True)
+        stats = []
+        for _ in range(number_of_properties):
+            key_len = packet[0]
+            key, packet = ParseString(packet[1:], key_len, consume=True)
+            value, packet = ParseDouble(packet, consume=True)
+            number_of_mods, packet = ParseVarInt(packet, consume=True)
+            mods = []
+            for _ in range(number_of_mods):
+                uuid, packet = ParseUUID(packet, consume=True)
+                amount, packet = ParseDouble(packet, consume=True)
+                operation = packet[0]
+                packet = packet[1:]
+                mods.append([uuid, amount, operation])
+            mod_amount = 0
+            for mod in mods:
+                uuid, amount, operation = mod
+                del uuid
+                if operation == 0:
+                    mod_amount += amount
+                else:
+                    print("Play.EntityProperties: ", operation, amount)
+            value += mod_amount
+            stats.append((key, value))
+        
+        if entity_id in self.entities:
+            self.entities[entity_id]["properties"] = stats
+            if "name" not in self.entities[entity_id]:
+                self.entities[entity_id]["name"] = self.names[self.entities[entity_id]["uuid"]]
+
+        return packet
 
     def handle_PlayerPositionAndLook(self, packet):
         x, packet = ParseDouble(packet, consume=True)
@@ -194,7 +240,7 @@ class libmc():
         # flags, packet = ParseByte(packet, consume=True)
         packet = packet[1:]
         teleport_id, packet = ParseVarInt(packet, consume=True)
-        print("Play.PlayerPositionAndLook (x:%s, y:%s, z:%s, teleport:%s)" % (x, y, z, teleport_id))
+        # print("Play.PlayerPositionAndLook (x:%s, y:%s, z:%s, teleport:%s)" % (x, y, z, teleport_id))
         self.position = [x, y, z]
         self.pitch = pitch
         self.yaw = yaw
@@ -203,7 +249,7 @@ class libmc():
 
     def handle_WorldBorder(self, packet):
         """TODO"""
-        print("Play.WorldBorder")
+        # print("Play.WorldBorder")
         return []
 
     def handle_TimeUpdate(self, packet):
@@ -215,12 +261,12 @@ class libmc():
         """TODO"""
         position, packet = ParseLong(packet, consume=True)
         x, y, z = ParseCoords(position)
-        print("Play.SpawnPosition (x:%s, y:%s, z:%s)")
-        self.position = [x, y, z]
+        # print("Play.SpawnPosition (x:%s, y:%s, z:%s)" % (x, y, z))
+        # self.position = [x, y, z]
         return []
 
     def send_PlayerPosition(self, x, y, z):
-        print("Sending PlayerPosition (x:%s, y:%s, z:%s)" % (x, y, z))
+        # print("Sending PlayerPosition (x:%s, y:%s, z:%s)" % (x, y, z))
         self.position = [x, y, z]
         # y = y - 1.62
         packet = PackVarInt(0x10) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackBool(True)
@@ -237,42 +283,52 @@ class libmc():
         self.send(packet)
 
     def handle_Disconnect(self, packet):
-        """TODO"""
         print("Play.Disconnect")
         import sys; sys.exit(-1)
         return []
 
     def handle_EntityRelativeMove(self, packet):
         entity_id, packet = ParseVarInt(packet, consume=True)
-        x, packet = ParseShort(packet, consume=True)
-        y, packet = ParseShort(packet, consume=True)
-        z, packet = ParseShort(packet, consume=True)
+        delta_x, packet = ParseShort(packet, consume=True)
+        delta_y, packet = ParseShort(packet, consume=True)
+        delta_z, packet = ParseShort(packet, consume=True)
         # Not handling on_ground
         packet = packet[1:]
         # Calculating relative changes to coords
-        relative_x = x / (128 * 32)
-        relative_y = y / (128 * 32)
-        relative_z = z / (128 * 32)
-        # print("Play.EntityRelativeMove (%s: x:%s, y:%s, z:%s)" % (entity_id, relative_x, relative_y, relative_z))
-        return packet
+        if entity_id in self.entities and self.entities[entity_id]["position"]:
+            x, y, z = self.entities[entity_id]["position"]
+            div = (32*128)
+            delta_x = delta_x / div
+            delta_y = delta_y / div
+            delta_z = delta_z / div
+            new_x = x + delta_x
+            new_y = y + delta_y
+            new_z = z + delta_z
+            self.entities[entity_id]["position"] = [new_x, new_y, new_z]
+ 
+        # print("Play.EntityRelativeMove (%s: x:%s, y:%s, z:%s)" % (entity_id, x, y, z))
+        return []
+
+    def handle_EntityLookAndRelativeMove(self, packet):
+        self.handle_EntityRelativeMove(packet)
+        return []
 
     def handle_WindowItems(self, packet):
         """TODO"""
-        print("Play.WindowItems")
+        # print("Play.WindowItems")
         return []
 
     def handle_Advancements(self, packet):
         """TODO"""
-        print("Play.Advancements")
+        # print("Play.Advancements")
         return []
 
     def handle_SetSlot(self, packet):
         """TODO"""
-        print("Play.SetSlot")
+        # print("Play.SetSlot")
         return []
 
     def handle_UpdateHealth(self, packet):
-        """TODO"""
         print("Play.UpdateHealth")
         self.respawn()
         return []
@@ -284,7 +340,7 @@ class libmc():
 
     def handle_SetExperience(self, packet):
         """TODO"""
-        print("Play.SetExperience")
+        # print("Play.SetExperience")
         return []
 
     def handle_EntityTeleport(self, packet):
@@ -294,7 +350,7 @@ class libmc():
         z, packet = ParseDouble(packet, consume=True)
         # Not handling yaw, pitch, or on_ground
         packet = packet[4:]
-        print("Play.EntityTeleport (%s: x:%s, y:%s, z:%s)" % (entity_id, x, y, z))
+
         if entity_id not in self.entities:
             self.entities[entity_id] = {"position": []}
         self.entities[entity_id]["position"] = [x, y, z]
@@ -374,6 +430,28 @@ class libmc():
             time.sleep(sleep)
             self.send_PlayerPosition(x, y, z)
 
+    def follow(self, name):
+        def new_position(target, own):
+            if int(target) > int(own):
+                val = own + 1
+            elif int(target) < int(own):
+                val = own - 1
+            else:
+                val = own
+            return val
+
+        while True:
+            for entity_id in self.entities:
+                entity = self.entities[entity_id]
+                if "name" in entity and entity["name"] == name:
+                    # print(entity_id)
+                    target_x, target_y, target_z = entity["position"]
+                    own_x, own_y, own_z = self.position
+                    x = new_position(target_x, own_x)
+                    y = new_position(target_y, own_y)
+                    z = new_position(target_z, own_z)
+                    self.send_PlayerPosition(x, y, z)
+                    time.sleep(0.1)
 
     def run(self):
         print("MCBot running...")
@@ -397,7 +475,6 @@ class libmc():
                     while len(packet) < length:
                         packet.append(self.recv(1)[0])
                     assert len(packet) == length, "Length is somehow different! (%s != %s)" % (len(packet), length)
-                    # print("%s bytes: " % length, end="")
 
                     # Now that we have the packet handle it
                     try:
@@ -407,7 +484,8 @@ class libmc():
                         self.handle_packet(packet)
                     packet = []
 
-            # print(self.entities)
             if self.position and self.accepted_teleport and not jiggling:
                 jiggling = True
-                _thread.start_new_thread(self.jiggle, (0, 0, ))
+                # _thread.start_new_thread(self.jiggle, (0, 0, ))
+                _thread.start_new_thread(self.follow, ("top1_", ))
+                

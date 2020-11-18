@@ -5,7 +5,6 @@ import uuid
 def hex_print(packet):
     print([hex(x) if isinstance(x, int) else hex(ord(x)) for x in packet])
 
-
 def PackVarInt(value):
     result = []
     for i in range(5):
@@ -39,7 +38,7 @@ def PackString(str):
 def ParseString(packet, length, consume=False):
     string = "".join([chr(x) for x in packet[:length]])
     if consume:
-        return string, packet[length+1:]
+        return string, packet[length:]
     return string
 
 def PackUnsignedShort(value):
@@ -50,6 +49,13 @@ def ParseShort(packet, consume=False):
     value = struct.unpack(">h", bytes(packet[:2]))[0]
     if consume:
         return value, packet[2:]
+    return value 
+
+def ParseInt(packet, consume=False):
+    packet = [ord(x) if isinstance(x, str) else x for x in packet]
+    value = struct.unpack(">i", bytes(packet[:4]))[0]
+    if consume:
+        return value, packet[4:]
     return value 
 
 def ParseDouble(packet, consume=False):
@@ -80,7 +86,11 @@ def ParseFloat(packet, consume=False):
     return value 
 
 def ParseByte(packet, consume=False):
-    assert False, "This has not been implemented"
+    assert False, "this is still bad and you should feel bad"
+    value = struct.unpack(">b", bytes(packet[0]))
+    if consume:
+        return value, packet[1:]
+    return value
 
 def ParseLong(packet, consume=False):
     packet = [ord(x) if isinstance(x, str) else x for x in packet]
@@ -110,10 +120,10 @@ def PackCoords(x, y, z):
     packet = PackLong(value)
     return packet
 
-def ParseUUID(packet, consume):
+def ParseUUID(packet, consume=False):
     string = uuid.UUID(bytes=bytes(packet[:16]))
     if consume:
-        return string, packet[17:]
+        return string, packet[16:]
     return string
 
 if __name__ == "__main__":
