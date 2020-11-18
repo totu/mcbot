@@ -5,6 +5,7 @@ from mctypes import *
 from enum import Enum
 import zlib
 import math
+import copy
 
 class Login(Enum):
     Disconnect = 0x00
@@ -49,6 +50,7 @@ class libmc():
     def __init__(self, name, host, port):
         self.names = {}
         self.entities = {}
+        self.reading = False
         self.name = name
         self.host = host
         self.port = port
@@ -58,6 +60,7 @@ class libmc():
         self.accepted_teleport = 0
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
+        self.lock = _thread.RLock()
         print("MCBot initialized")
 
     def recv(self, count):
@@ -76,15 +79,21 @@ class libmc():
         return length
 
     def calculate_yaw_and_pitch(self, x, y, z):
-        x0, y0, z0 = self.position
-        dx = x-x0
-        dy = y-y0
-        dz = z-z0
-        r = math.sqrt(dx*dx + dy*dy + dz*dz)
-        yaw = -math.atan2(dx,dz)/math.pi*180
-        if yaw < 0:
-            yaw = 360 + yaw
-        pitch = -math.asin(dy/r)/math.pi*180
+        try:
+            x0, y0, z0 = self.position
+            dx = x-x0
+            dy = y-y0
+            dz = z-z0
+            r = math.sqrt(dx*dx + dy*dy + dz*dz)
+            yaw = -math.atan2(dx,dz)/math.pi*180
+            if yaw < 0:
+                yaw = 360 + yaw
+            pitch = -math.asin(dy/r)/math.pi*180
+        except ZeroDivisionError:
+            return self.yaw, self. pitch
+
+        self.yaw = yaw
+        self.pitch = pitch
         return yaw, pitch
 
     def handle_SetCompression(self, packet):
@@ -177,6 +186,18 @@ class libmc():
             name = ParseString(pckt, length)
             self.names[uuid] = name
 
+    def _player_action_four(self, count, packet):
+        for i in range(int(len(packet)/count)):
+            pckt = packet[i:]
+            uuid, pckt = ParseUUID(pckt, consume=True)
+            with self.lock:
+                entities = self.entities
+                if uuid in self.names:
+                    self.names.pop(uuid)
+                for entity in entities:
+                    if entities[entity]["uuid"] == uuid:
+                        del self.entities[entity]
+
     def handle_PlayerInfo(self, packet):
         action, packet = ParseVarInt(packet, consume=True)
         number_of_players, packet = ParseVarInt(packet, consume=True)
@@ -184,9 +205,14 @@ class libmc():
             players = int(len(packet) / number_of_players)
             if action == 0:
                 self._player_action_zero(players, packet)
+            elif action == 1:
+                # this is game mode
+                pass
             elif action == 2:
                 # this is ping info
                 pass
+            elif action == 4:
+                self._player_action_four(players, packet)
             else:
                 print("Play.PlayerInfo")
                 print(action)
@@ -199,9 +225,8 @@ class libmc():
         x, packet = ParseDouble(packet, consume=True)
         y, packet = ParseDouble(packet, consume=True)
         z, packet = ParseDouble(packet, consume=True)
-        self.entities[entity_id] = {'position': [x, y, z], 'uuid': uuid}
-        # ignoring yaw, pitch, and metadata
-        # print("Play.SpawnPlayer (%s==%s, (x:%s, y:%s, z:%s)" % (entity_id, uuid, x, y ,z))
+        with self.lock:
+            self.entities[entity_id] = {'position': [x, y, z], 'uuid': uuid}
         return []
 
     def handle_EntityMetadata(self, packet):
@@ -236,10 +261,11 @@ class libmc():
             value += mod_amount
             stats.append((key, value))
         
-        if entity_id in self.entities:
-            self.entities[entity_id]["properties"] = stats
-            if "name" not in self.entities[entity_id]:
-                self.entities[entity_id]["name"] = self.names[self.entities[entity_id]["uuid"]]
+        with self.lock:
+            if entity_id in self.entities:
+                self.entities[entity_id]["properties"] = stats
+                if "name" not in self.entities[entity_id]:
+                    self.entities[entity_id]["name"] = self.names[self.entities[entity_id]["uuid"]]
 
         return packet
 
@@ -278,13 +304,6 @@ class libmc():
         # self.position = [x, y, z]
         return []
 
-    def send_PlayerPosition(self, x, y, z):
-        # print("Sending PlayerPosition (x:%s, y:%s, z:%s)" % (x, y, z))
-        self.position = [x, y, z]
-        # y = y - 1.62
-        packet = PackVarInt(0x10) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackBool(True)
-        self.send(packet)
-
     def handle_KeepAlive(self, packet):
         # print("Play.KeepAlive")
         self.send_KeepAlive(packet)
@@ -308,17 +327,18 @@ class libmc():
         # Not handling on_ground
         packet = packet[1:]
         # Calculating relative changes to coords
-        if entity_id in self.entities and self.entities[entity_id]["position"]:
-            x, y, z = self.entities[entity_id]["position"]
-            div = (32*128)
-            delta_x = delta_x / div
-            delta_y = delta_y / div
-            delta_z = delta_z / div
-            new_x = x + delta_x
-            new_y = y + delta_y
-            new_z = z + delta_z
-            self.entities[entity_id]["position"] = [new_x, new_y, new_z]
- 
+        with self.lock:
+            if entity_id in self.entities and self.entities[entity_id]["position"]:
+                x, y, z = self.entities[entity_id]["position"]
+                div = (32*128)
+                delta_x = delta_x / div
+                delta_y = delta_y / div
+                delta_z = delta_z / div
+                new_x = x + delta_x
+                new_y = y + delta_y
+                new_z = z + delta_z
+                self.entities[entity_id]["position"] = [new_x, new_y, new_z]
+    
         # print("Play.EntityRelativeMove (%s: x:%s, y:%s, z:%s)" % (entity_id, x, y, z))
         return []
 
@@ -363,10 +383,12 @@ class libmc():
         z, packet = ParseDouble(packet, consume=True)
         # Not handling yaw, pitch, or on_ground
         packet = packet[4:]
+        
+        with self.lock:
+            if entity_id not in self.entities:
+                self.entities[entity_id] = {"position": []}
+            self.entities[entity_id]["position"] = [x, y, z]
 
-        if entity_id not in self.entities:
-            self.entities[entity_id] = {"position": []}
-        self.entities[entity_id]["position"] = [x, y, z]
         return packet
 
     def handle_packet(self, packet):
@@ -418,13 +440,32 @@ class libmc():
         self.send(packet)
         self.accepted_teleport = teleport_id
 
+    def send_PlayerPosition(self, x, y, z):
+        self.position = [x, y, z]
+        # y = y - 1.62
+        packet = PackVarInt(0x10) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackBool(True)
+        self.send(packet)
+
     def send_PlayerLook(self, yaw, pitch):
         """Look at something"""
         packet = PackVarInt(0x12) + PackFloat(yaw) + PackFloat(pitch) + PackBool(True)
         self.send(packet)
 
     def send_PlayerPositionAndLook(self, x, y, z, yaw, pitch):
-        pass
+        self.position = [x, y, z]
+        packet = PackVarInt(0x11) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackFloat(yaw) + PackFloat(pitch) + PackBool(True)
+        self.send(packet)
+
+    # send_UseEntity
+    def attack(self, name):
+        with self.lock:
+            entities = copy.deepcopy(self.entities)
+        
+        for entity in entities:
+            if "name" in entities[entity] and entities[entity]["name"] == name:
+                # 0: interact, 1: attack, 2: interact
+                packet = PackVarInt(0x0d) + PackVarInt(entity) + PackVarInt(1)
+                self.send(packet)
 
     def respawn(self):
         self.send_ClientStatus(0)
@@ -462,18 +503,20 @@ class libmc():
             return val
 
         while True:
-            for entity_id in self.entities:
-                entity = self.entities[entity_id]
+            with self.lock:
+                entities = copy.deepcopy(self.entities)
+
+            for entity_id in entities:
+                entity = entities[entity_id]
                 if "name" in entity and entity["name"] == name:
-                    # print(entity_id)
                     target_x, target_y, target_z = entity["position"]
                     own_x, own_y, own_z = self.position
                     x = new_position(target_x, own_x)
                     y = new_position(target_y, own_y)
                     z = new_position(target_z, own_z)
-                    self.send_PlayerPosition(x, y, z)
                     yaw, pitch = self.calculate_yaw_and_pitch(target_x, target_y, target_z)
-                    self.send_PlayerLook(yaw, pitch)
+                    self.send_PlayerPositionAndLook(x, y, z, yaw, pitch)
+                    self.attack(name)
                     time.sleep(0.1)
 
     def run(self):
@@ -503,7 +546,7 @@ class libmc():
                     try:
                         self.handle_packet(packet)
                     except:
-                        print("".join([chr(x) for x in packet]))
+                        print("FAIL: ", "".join([chr(x) for x in packet]))
                         self.handle_packet(packet)
                     packet = []
 
