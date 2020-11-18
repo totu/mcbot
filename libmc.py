@@ -466,6 +466,8 @@ class libmc():
                 # 0: interact, 1: attack, 2: interact
                 packet = PackVarInt(0x0d) + PackVarInt(entity) + PackVarInt(1)
                 self.send(packet)
+                packet = PackVarInt(0x27) + PackVarInt(0)
+                self.send(packet)
 
     def respawn(self):
         self.send_ClientStatus(0)
@@ -493,11 +495,11 @@ class libmc():
             self.send_PlayerPosition(x, y, z)
 
     def follow(self, name):
-        def new_position(target, own):
+        def new_position(target, own, move=1):
             if int(target) > int(own):
-                val = own + 1
+                val = own + move
             elif int(target) < int(own):
-                val = own - 1
+                val = own - move
             else:
                 val = own
             return val
@@ -516,7 +518,8 @@ class libmc():
                     z = new_position(target_z, own_z)
                     yaw, pitch = self.calculate_yaw_and_pitch(target_x, target_y, target_z)
                     self.send_PlayerPositionAndLook(x, y, z, yaw, pitch)
-                    self.attack(name)
+                    if abs(own_x - target_x) < 2 and abs(own_y - target_y) < 2 and abs(own_z - target_z) < 2:
+                        self.attack(name)
                     time.sleep(0.1)
 
     def run(self):
@@ -553,5 +556,5 @@ class libmc():
             if self.position and self.accepted_teleport and not jiggling:
                 jiggling = True
                 # _thread.start_new_thread(self.jiggle, (0, 0, ))
-                _thread.start_new_thread(self.follow, ("top1_", ))
+                _thread.start_new_thread(self.follow, ("Komentaja_3", ))
                 
