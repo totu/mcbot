@@ -1,9 +1,7 @@
 """MC types"""
 import struct 
 import uuid
-
-def hex_print(packet):
-    print([hex(x) if isinstance(x, int) else hex(ord(x)) for x in packet])
+from helpers import hex_print
 
 def PackVarInt(value):
     result = []
