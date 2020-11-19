@@ -39,3 +39,4 @@ class Play(Enum):
     SetExperience = 0x43
     EntityTeleport = 0x50
     EntityLookAndRelativeMove = 0x29
+    ChatMessage = 0x0e

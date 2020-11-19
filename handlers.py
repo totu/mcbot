@@ -3,6 +3,7 @@ from mctypes import ParseVarInt, ParseString, ParseUUID, ParseDouble, ParseFloat
 from enums import Play
 from helpers import hex_print
 import zlib
+import json
 
 class Handler():
     def __init__(self):
@@ -13,6 +14,30 @@ class Handler():
 
     def recv(self, count):
         return self.sock.recv(count)
+
+    def handle_packet(self, packet):
+            """Parse packet id and call appropriate handler"""
+            if self.compression:
+                compression_len, packet = ParseVarInt(packet, consume=True)
+
+                # if we have compressed data decompress it
+                if compression_len != 0:
+                    packet = zlib.decompress(bytearray(packet))
+                
+            packet_id, packet = ParseVarInt(packet, consume=True)
+            try:
+                packet_id = str(self.state(packet_id))
+            except ValueError:
+                #print("Unknown packet ID %s for state %s" % (hex(packet_id), self.state))
+                pass
+
+            try:
+                func = getattr(self, "handle_" + packet_id.split(".")[1])
+                packet = func(packet=packet)
+                assert len(packet) == 0
+            except AttributeError:
+                # print("Unknown packet: %s" % packet)
+                pass
 
     def handle_SetCompression(self, packet):
         """Threshold (VarInt): Maximum size of a packet before it is compressed"""
@@ -315,26 +340,18 @@ class Handler():
 
         return packet
 
-    def handle_packet(self, packet):
-        """Parse packet id and call appropriate handler"""
-        if self.compression:
-            compression_len, packet = ParseVarInt(packet, consume=True)
-
-            # if we have compressed data decompress it
-            if compression_len != 0:
-                packet = zlib.decompress(bytearray(packet))
-            
-        packet_id, packet = ParseVarInt(packet, consume=True)
-        try:
-            packet_id = str(self.state(packet_id))
-        except ValueError:
-            #print("Unknown packet ID %s for state %s" % (hex(packet_id), self.state))
-            pass
-
-        try:
-            func = getattr(self, "handle_" + packet_id.split(".")[1])
-            packet = func(packet=packet)
-            assert len(packet) == 0
-        except AttributeError:
-            # print("Unknown packet: %s" % packet)
-            pass
+    def handle_ChatMessage(self, packet):
+        length, packet = ParseVarInt(packet, consume=True)
+        message, packet = ParseString(packet, length, consume=True)
+        message = json.loads(message)
+        position = packet[0]
+        packet = packet[1:]
+        del position
+        txt = message["with"][-1]
+        if isinstance(txt, dict):
+            txt = txt["text"]
+        
+        if txt.startswith("!"):
+            # pylint: disable=no-member
+            self.bot_command(txt[1:])
+        return packet

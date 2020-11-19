@@ -23,10 +23,12 @@ class libmc(Handler, Sender):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
         self.lock = _thread.RLock()
+        self.following = None
         print("MCBot initialized")
 
     def attack(self, name):
         """send_UseEntity"""
+        print("MCBot attacking:", name)
         with self.lock:
             entities = copy.deepcopy(self.entities)
         
@@ -45,7 +47,8 @@ class libmc(Handler, Sender):
         del x, y
         return
 
-    def follow(self, name):
+    def follow(self, name, cmd):
+        print("MCBot following:", name)
         def new_position(target, own, move=1):
             if int(target) > int(own):
                 val = own + move
@@ -56,25 +59,41 @@ class libmc(Handler, Sender):
             return val
 
         while True:
+            if not self.following:
+                break
+
             with self.lock:
                 entities = copy.deepcopy(self.entities)
 
             for entity_id in entities:
                 entity = entities[entity_id]
                 if "name" in entity and entity["name"] == name:
-                    zipped = zip(self.position, entity["position"])
-                    x, y, z = [new_position(x[0], x[1]) for x in zipped]
+                    x, y, z = [new_position(x[0], x[1]) for x in zip(self.position, entity["position"])]
                     yaw, pitch = calculate_yaw_and_pitch(entity["position"], self.position)
                     self.send_PlayerPositionAndLook(x, y, z, yaw, pitch)
-                    if True in [abs(x[0] - x[1]) < 2 for x in zipped]:
+                    if cmd == "kill" and True in [abs(x[0] - x[1]) < 2 for x in zip(self.position, entity["position"])]:
                         self.attack(name)
                     time.sleep(0.1)
+    
+
+    def bot_command(self, command):
+        command = command.strip()
+        print("MCBot got command:", command)
+        if command.startswith("stop"):
+            self.following = None
+
+        if command.startswith("follow:") or command.startswith("kill:"):
+            cmd, name = command.split(":")
+            self.following = None
+            time.sleep(0.3)
+            self.following = _thread.start_new_thread(self.follow, (name, cmd, ))
+            # _thread.start_new_thread(self.jiggle, (0, 0, ))
+                
 
     def run(self):
         print("MCBot running...")
         self.send_HandShake()
         self.send_LoginStart()
-        jiggling = False
 
         packet = []
         while True:
@@ -100,9 +119,3 @@ class libmc(Handler, Sender):
                         print("FAIL: ", "".join([chr(x) for x in packet]))
                         self.handle_packet(packet)
                     packet = []
-
-            if self.position and self.accepted_teleport and not jiggling:
-                jiggling = True
-                # _thread.start_new_thread(self.jiggle, (0, 0, ))
-                _thread.start_new_thread(self.follow, ("top1_", ))
-                
