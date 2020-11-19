@@ -281,10 +281,13 @@ class Handler():
         return []
 
     def handle_UpdateHealth(self, packet):
-        print("Play.UpdateHealth")
+        health, packet = ParseFloat(packet, consume=True)
+        food, packet = ParseVarInt(packet, consume=True)
+        saturation, packet = ParseFloat(packet, consume=True)
+        print("Play.UpdateHealth: (%s, %s, %s)" % (health, food, saturation))
         # pylint: disable=no-member
         self.respawn()
-        return []
+        return packet
 
     def handle_BlockChange(self, packet):
         """TODO"""
