@@ -60,6 +60,8 @@ class Sender():
 
     def send_PlayerPositionAndLook(self, x, y, z, yaw, pitch):
         self.position = [x, y, z]
+        self.yaw = yaw
+        self.pitch = pitch
         packet = PackVarInt(0x11) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackFloat(yaw) + PackFloat(pitch) + PackBool(True)
         self.send(packet)
 

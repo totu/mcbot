@@ -19,6 +19,8 @@ class libmc(Handler, Sender):
         self.compression = False
         self.state = Login
         self.position = []
+        self.yaw = 0
+        self.pitch = 0
         self.accepted_teleport = 0
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
@@ -34,11 +36,21 @@ class libmc(Handler, Sender):
         
         for entity in entities:
             if "name" in entities[entity] and entities[entity]["name"] == name:
+                # Jump for crit
+                x, y, z = self.position
+                print("jump")
+                self.send_PlayerPositionAndLook(x, y+1, z, self.yaw, self.pitch)
                 # 0: interact, 1: attack, 2: interact
                 packet = PackVarInt(0x0d) + PackVarInt(entity) + PackVarInt(1)
+                print("attack")
                 self.send(packet)
+                # animation
                 packet = PackVarInt(0x27) + PackVarInt(0)
+                print("swing")
                 self.send(packet)
+                # land?
+                print("land")
+                self.send_PlayerPositionAndLook(x, y, z, self.yaw, self.pitch)
 
     def respawn(self):
         self.send_ClientStatus(0)
@@ -68,11 +80,17 @@ class libmc(Handler, Sender):
             for entity_id in entities:
                 entity = entities[entity_id]
                 if "name" in entity and entity["name"] == name:
-                    x, y, z = [new_position(x[0], x[1]) for x in zip(self.position, entity["position"])]
+                    x, y, z = [new_position(x[0], x[1]) for x in zip(entity["position"], self.position)]
+
+                    # dont change height if within limit
+                    if abs(y - self.position[1]) < 2:
+                        y = self.position[1]
+
                     yaw, pitch = calculate_yaw_and_pitch(entity["position"], self.position)
-                    self.send_PlayerPositionAndLook(x, y, z, yaw, pitch)
-                    if cmd == "kill" and True in [abs(x[0] - x[1]) < 2 for x in zip(self.position, entity["position"])]:
+                    if cmd == "kill" and True in [abs(x[0] - x[1]) < 4 for x in zip(self.position, entity["position"])]:
                         self.attack(name)
+                    if True in [abs(x[0] - x[1]) > 2 for x in zip(self.position, entity["position"])]:
+                        self.send_PlayerPositionAndLook(x, y, z, yaw, pitch)
                     time.sleep(0.1)
     
 

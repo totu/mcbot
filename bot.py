@@ -2,6 +2,7 @@
 import struct
 import libmc
 from configparser import ConfigParser
+import _thread
 
 # Main loop
 def setup_bot(name):
