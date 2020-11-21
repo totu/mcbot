@@ -1,4 +1,5 @@
 """Minecraft bot"""
+import argparse
 import struct
 import libmc
 from configparser import ConfigParser
@@ -15,7 +16,11 @@ def setup_bot(name):
 
 def main():
     """do the thing"""
-    mc = setup_bot("top2_")
+    parser = argparse.ArgumentParser(description='MCBot.')
+    parser.add_argument('name', help="name of the bot")
+
+    args = parser.parse_args()
+    mc = setup_bot(args.name)
     mc.run()
 
 if __name__ == "__main__":

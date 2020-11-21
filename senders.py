@@ -58,10 +58,10 @@ class Sender():
         packet = PackVarInt(0x12) + PackFloat(yaw) + PackFloat(pitch) + PackBool(True)
         self.send(packet)
 
-    def send_PlayerPositionAndLook(self, x, y, z, yaw, pitch):
+    def send_PlayerPositionAndLook(self, x, y, z, yaw, pitch, on_ground=True):
         self.position = [x, y, z]
         self.yaw = yaw
         self.pitch = pitch
-        packet = PackVarInt(0x11) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackFloat(yaw) + PackFloat(pitch) + PackBool(True)
+        packet = PackVarInt(0x11) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackFloat(yaw) + PackFloat(pitch) + PackBool(on_ground)
         self.send(packet)
 

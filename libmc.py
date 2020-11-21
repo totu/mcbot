@@ -31,26 +31,30 @@ class libmc(Handler, Sender):
     def attack(self, name):
         """send_UseEntity"""
         print("MCBot attacking:", name)
+        distance = 3
         with self.lock:
             entities = copy.deepcopy(self.entities)
         
         for entity in entities:
-            if "name" in entities[entity] and entities[entity]["name"] == name:
+            ent = entities[entity]
+            if ent.is_name(name) and ent.is_inrange(self.position, distance):
                 # Jump for crit
                 x, y, z = self.position
-                print("jump")
-                self.send_PlayerPositionAndLook(x, y+1, z, self.yaw, self.pitch)
+                self.send_PlayerPositionAndLook(x, y+0.5, z, self.yaw, self.pitch, on_ground=False)
+                time.sleep(0.05)
+                self.send_PlayerPositionAndLook(x, y+1, z, self.yaw, self.pitch, on_ground=False)
+                time.sleep(0.05)
+                self.send_PlayerPositionAndLook(x, y, z+0.5, self.yaw, self.pitch, on_ground=False)
+                time.sleep(0.05)
                 # 0: interact, 1: attack, 2: interact
                 packet = PackVarInt(0x0d) + PackVarInt(entity) + PackVarInt(1)
-                print("attack")
                 self.send(packet)
                 # animation
                 packet = PackVarInt(0x27) + PackVarInt(0)
-                print("swing")
                 self.send(packet)
                 # land?
-                print("land")
-                self.send_PlayerPositionAndLook(x, y, z, self.yaw, self.pitch)
+                time.sleep(0.05)
+                self.send_PlayerPositionAndLook(x, y, z, self.yaw, self.pitch, on_ground=True)
 
     def respawn(self):
         self.send_ClientStatus(0)
@@ -79,19 +83,27 @@ class libmc(Handler, Sender):
 
             for entity_id in entities:
                 entity = entities[entity_id]
-                if "name" in entity and entity["name"] == name:
-                    x, y, z = [new_position(x[0], x[1]) for x in zip(entity["position"], self.position)]
+
+                if entity.is_name(name, partial=True):
+                    own_pos = self.position
+                    target_pos = entity.position
+                    x, y, z = [new_position(x[0], x[1]) for x in zip(target_pos, own_pos)]
 
                     # dont change height if within limit
                     if abs(y - self.position[1]) < 2:
                         y = self.position[1]
 
-                    yaw, pitch = calculate_yaw_and_pitch(entity["position"], self.position)
-                    if cmd == "kill" and True in [abs(x[0] - x[1]) < 4 for x in zip(self.position, entity["position"])]:
-                        self.attack(name)
-                    if True in [abs(x[0] - x[1]) > 2 for x in zip(self.position, entity["position"])]:
+                    yaw, pitch = calculate_yaw_and_pitch(target_pos, own_pos)
+
+                    # move towards the target
+                    if entity.is_not_inrange(own_pos, 2):
                         self.send_PlayerPositionAndLook(x, y, z, yaw, pitch)
-                    time.sleep(0.1)
+
+                    # try to stick to land
+                    elif target_pos[1] < own_pos[1]:
+                        self.send_PlayerPositionAndLook(own_pos[0], target_pos[1], own_pos[2], yaw, pitch)
+
+                    self.attack(entity.name)
     
 
     def bot_command(self, command):

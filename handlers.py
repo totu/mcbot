@@ -1,4 +1,5 @@
 """libmc handlers"""
+from entity import Entity
 from mctypes import ParseVarInt, ParseString, ParseUUID, ParseDouble, ParseFloat, ParseShort, ParseInt, ParseLong, ParseCoords
 from enums import Play
 from helpers import hex_print
@@ -139,7 +140,7 @@ class Handler():
                 if uuid in self.names:
                     self.names.pop(uuid)
                 for entity in entities:
-                    if entities[entity]["uuid"] == uuid:
+                    if entities[entity].is_uuid(uuid):
                         del self.entities[entity]
 
     def handle_PlayerInfo(self, packet):
@@ -171,7 +172,16 @@ class Handler():
         z, packet = ParseDouble(packet, consume=True)
         # pylint: disable=not-context-manager
         with self.lock:
-            self.entities[entity_id] = {'position': [x, y, z], 'uuid': uuid}
+            if entity_id in self.entities:
+                self.entities[entity_id].set_position(x, y, z)
+            else:                   
+                ent = Entity(uuid)
+                ent.set_position(x, y, z)
+                if ent.uuid in self.names:
+                    name = self.names[ent.uuid]
+                    ent.name = name
+                self.entities[entity_id] = ent
+                
         return []
 
     def handle_EntityMetadata(self, packet):
@@ -209,9 +219,10 @@ class Handler():
         # pylint: disable=not-context-manager
         with self.lock:
             if entity_id in self.entities:
-                self.entities[entity_id]["properties"] = stats
-                if "name" not in self.entities[entity_id]:
-                    self.entities[entity_id]["name"] = self.names[self.entities[entity_id]["uuid"]]
+                ent = self.entities[entity_id]
+                ent.set_properties(stats)
+                name = self.names[ent.uuid]
+                ent.name = name
 
         return packet
 
@@ -272,8 +283,8 @@ class Handler():
         # Calculating relative changes to coords
         # pylint: disable=not-context-manager
         with self.lock:
-            if entity_id in self.entities and self.entities[entity_id]["position"]:
-                x, y, z = self.entities[entity_id]["position"]
+            if entity_id in self.entities and self.entities[entity_id].position:
+                x, y, z = self.entities[entity_id].position
                 div = (32*128)
                 delta_x = delta_x / div
                 delta_y = delta_y / div
@@ -281,7 +292,7 @@ class Handler():
                 new_x = x + delta_x
                 new_y = y + delta_y
                 new_z = z + delta_z
-                self.entities[entity_id]["position"] = [new_x, new_y, new_z]
+                self.entities[entity_id].set_position(new_x, new_y, new_z)
     
         # print("Play.EntityRelativeMove (%s: x:%s, y:%s, z:%s)" % (entity_id, x, y, z))
         return []
@@ -334,9 +345,9 @@ class Handler():
         
         # pylint: disable=not-context-manager
         with self.lock:
-            if entity_id not in self.entities:
-                self.entities[entity_id] = {"position": []}
-            self.entities[entity_id]["position"] = [x, y, z]
+            if entity_id in self.entities:
+                self.entities[entity_id].set_position(x, y, z)
+
 
         return packet
 
