@@ -1,12 +1,23 @@
 """libmc handlers"""
 from entity import Entity
-from mctypes import ParseVarInt, ParseString, ParseUUID, ParseDouble, ParseFloat, ParseShort, ParseInt, ParseLong, ParseCoords
+from mctypes import (
+    ParseVarInt,
+    ParseString,
+    ParseUUID,
+    ParseDouble,
+    ParseFloat,
+    ParseShort,
+    ParseInt,
+    ParseLong,
+    ParseCoords,
+)
 from enums import Play
 from helpers import hex_print
 import zlib
 import json
 
-class Handler():
+
+class Handler:
     def __init__(self):
         self.lock = None
         self.entities = []
@@ -17,28 +28,28 @@ class Handler():
         return self.sock.recv(count)
 
     def handle_packet(self, packet):
-            """Parse packet id and call appropriate handler"""
-            if self.compression:
-                compression_len, packet = ParseVarInt(packet, consume=True)
+        """Parse packet id and call appropriate handler"""
+        if self.compression:
+            compression_len, packet = ParseVarInt(packet, consume=True)
 
-                # if we have compressed data decompress it
-                if compression_len != 0:
-                    packet = zlib.decompress(bytearray(packet))
-                
-            packet_id, packet = ParseVarInt(packet, consume=True)
-            try:
-                packet_id = str(self.state(packet_id))
-            except ValueError:
-                #print("Unknown packet ID %s for state %s" % (hex(packet_id), self.state))
-                pass
+            # if we have compressed data decompress it
+            if compression_len != 0:
+                packet = zlib.decompress(bytearray(packet))
 
-            try:
-                func = getattr(self, "handle_" + packet_id.split(".")[1])
-                packet = func(packet=packet)
-                assert len(packet) == 0
-            except AttributeError:
-                # print("Unknown packet: %s" % packet)
-                pass
+        packet_id, packet = ParseVarInt(packet, consume=True)
+        try:
+            packet_id = str(self.state(packet_id))
+        except ValueError:
+            # print("Unknown packet ID %s for state %s" % (hex(packet_id), self.state))
+            pass
+
+        try:
+            func = getattr(self, "handle_" + packet_id.split(".")[1])
+            packet = func(packet=packet)
+            assert len(packet) == 0
+        except AttributeError:
+            # print("Unknown packet: %s" % packet)
+            pass
 
     def handle_SetCompression(self, packet):
         """Threshold (VarInt): Maximum size of a packet before it is compressed"""
@@ -50,7 +61,7 @@ class Handler():
 
     def handle_LoginSuccess(self, packet):
         """UUID (string(36)): Unlike in other packets, this field contains the UUID as a string with hyphens.
-           Username (string(16)):
+        Username (string(16)):
         """
         uuid, packet = ParseString(packet, 36, consume=True)
         username, packet = ParseString(packet, 16, consume=True)
@@ -96,13 +107,13 @@ class Handler():
 
     def handle_CloseWindow(self, packet):
         """TODO"""
-        # This is the ID of the window that was closed. 0 for inventory. 
+        # This is the ID of the window that was closed. 0 for inventory.
         # print("Play.CloseWindow")
         return []
 
     def handle_ChunkData(self, packet):
         """TODO"""
-        # This is the ID of the window that was closed. 0 for inventory. 
+        # This is the ID of the window that was closed. 0 for inventory.
         # print("Play.ChunkData")
         return []
 
@@ -120,9 +131,9 @@ class Handler():
         """TODO"""
         # print("Play.UnlockRecipes")
         return []
-        
+
     def _player_action_zero(self, count, packet):
-        for i in range(int(len(packet)/count)):
+        for i in range(int(len(packet) / count)):
             pckt = packet[i:]
             uuid, pckt = ParseUUID(pckt, consume=True)
             length = pckt[0]
@@ -131,7 +142,7 @@ class Handler():
             self.names[uuid] = name
 
     def _player_action_four(self, count, packet):
-        for i in range(int(len(packet)/count)):
+        for i in range(int(len(packet) / count)):
             pckt = packet[i:]
             uuid, pckt = ParseUUID(pckt, consume=True)
             # pylint: disable=not-context-manager
@@ -174,14 +185,14 @@ class Handler():
         with self.lock:
             if entity_id in self.entities:
                 self.entities[entity_id].set_position(x, y, z)
-            else:                   
+            else:
                 ent = Entity(uuid)
                 ent.set_position(x, y, z)
                 if ent.uuid in self.names:
                     name = self.names[ent.uuid]
                     ent.name = name
                 self.entities[entity_id] = ent
-                
+
         return []
 
     def handle_EntityMetadata(self, packet):
@@ -215,7 +226,7 @@ class Handler():
                     print("Play.EntityProperties: ", operation, amount)
             value += mod_amount
             stats.append((key, value))
-        
+
         # pylint: disable=not-context-manager
         with self.lock:
             if entity_id in self.entities:
@@ -261,7 +272,7 @@ class Handler():
         # print("Play.SpawnPosition (x:%s, y:%s, z:%s)" % (x, y, z))
         # self.position = [x, y, z]
         return []
-    
+
     def handle_KeepAlive(self, packet):
         # print("Play.KeepAlive")
         # pylint: disable=no-member
@@ -270,7 +281,9 @@ class Handler():
 
     def handle_Disconnect(self, packet):
         print("Play.Disconnect")
-        import sys; sys.exit(-1)
+        import sys
+
+        sys.exit(-1)
         return []
 
     def handle_EntityRelativeMove(self, packet):
@@ -285,7 +298,7 @@ class Handler():
         with self.lock:
             if entity_id in self.entities and self.entities[entity_id].position:
                 x, y, z = self.entities[entity_id].position
-                div = (32*128)
+                div = 32 * 128
                 delta_x = delta_x / div
                 delta_y = delta_y / div
                 delta_z = delta_z / div
@@ -293,7 +306,7 @@ class Handler():
                 new_y = y + delta_y
                 new_z = z + delta_z
                 self.entities[entity_id].set_position(new_x, new_y, new_z)
-    
+
         # print("Play.EntityRelativeMove (%s: x:%s, y:%s, z:%s)" % (entity_id, x, y, z))
         return []
 
@@ -342,12 +355,11 @@ class Handler():
         z, packet = ParseDouble(packet, consume=True)
         # Not handling yaw, pitch, or on_ground
         packet = packet[4:]
-        
+
         # pylint: disable=not-context-manager
         with self.lock:
             if entity_id in self.entities:
                 self.entities[entity_id].set_position(x, y, z)
-
 
         return packet
 
@@ -361,7 +373,7 @@ class Handler():
         txt = message["with"][-1]
         if isinstance(txt, dict):
             txt = txt["text"]
-        
+
         if txt.startswith("!"):
             # pylint: disable=no-member
             self.bot_command(txt[1:])

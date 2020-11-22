@@ -1,6 +1,15 @@
 """libmc senders"""
-from mctypes import PackVarInt, PackString, PackUnsignedShort, PackDouble, PackBool, PackFloat
-class Sender():
+from mctypes import (
+    PackVarInt,
+    PackString,
+    PackUnsignedShort,
+    PackDouble,
+    PackBool,
+    PackFloat,
+)
+
+
+class Sender:
     def __init__(self):
         """Dummy init for inheritors"""
         self.name = None
@@ -19,15 +28,21 @@ class Sender():
 
     def send_KeepAlive(self, packet):
         # print("Sending KeepAlive")
-        packet = PackVarInt(0x0e) + packet
+        packet = PackVarInt(0x0E) + packet
         self.send(packet)
 
     def send_HandShake(self):
         """Server Handshake"""
         print("Sending Server HandShake")
-        packet = PackVarInt(0) + PackVarInt(404) + PackString(self.host) + PackUnsignedShort(self.port) + PackVarInt(2)
+        packet = (
+            PackVarInt(0)
+            + PackVarInt(404)
+            + PackString(self.host)
+            + PackUnsignedShort(self.port)
+            + PackVarInt(2)
+        )
         self.send(packet)
-        
+
     def send_LoginStart(self):
         """Login start"""
         print("Sending Server LoginStart")
@@ -50,7 +65,13 @@ class Sender():
     def send_PlayerPosition(self, x, y, z):
         self.position = [x, y, z]
         # y = y - 1.62
-        packet = PackVarInt(0x10) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackBool(True)
+        packet = (
+            PackVarInt(0x10)
+            + PackDouble(x)
+            + PackDouble(y)
+            + PackDouble(z)
+            + PackBool(True)
+        )
         self.send(packet)
 
     def send_PlayerLook(self, yaw, pitch):
@@ -62,6 +83,13 @@ class Sender():
         self.position = [x, y, z]
         self.yaw = yaw
         self.pitch = pitch
-        packet = PackVarInt(0x11) + PackDouble(x) + PackDouble(y) + PackDouble(z) + PackFloat(yaw) + PackFloat(pitch) + PackBool(on_ground)
+        packet = (
+            PackVarInt(0x11)
+            + PackDouble(x)
+            + PackDouble(y)
+            + PackDouble(z)
+            + PackFloat(yaw)
+            + PackFloat(pitch)
+            + PackBool(on_ground)
+        )
         self.send(packet)
-

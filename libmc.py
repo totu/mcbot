@@ -8,6 +8,7 @@ from handlers import Handler
 from senders import Sender
 from helpers import calculate_yaw_and_pitch
 
+
 class libmc(Handler, Sender):
     def __init__(self, name, host, port):
         self.names = {}
@@ -34,27 +35,35 @@ class libmc(Handler, Sender):
         distance = 3
         with self.lock:
             entities = copy.deepcopy(self.entities)
-        
+
         for entity in entities:
             ent = entities[entity]
             if ent.is_name(name) and ent.is_inrange(self.position, distance):
                 # Jump for crit
                 x, y, z = self.position
-                self.send_PlayerPositionAndLook(x, y+0.5, z, self.yaw, self.pitch, on_ground=False)
+                self.send_PlayerPositionAndLook(
+                    x, y + 0.5, z, self.yaw, self.pitch, on_ground=False
+                )
                 time.sleep(0.05)
-                self.send_PlayerPositionAndLook(x, y+1, z, self.yaw, self.pitch, on_ground=False)
+                self.send_PlayerPositionAndLook(
+                    x, y + 1, z, self.yaw, self.pitch, on_ground=False
+                )
                 time.sleep(0.05)
-                self.send_PlayerPositionAndLook(x, y, z+0.5, self.yaw, self.pitch, on_ground=False)
+                self.send_PlayerPositionAndLook(
+                    x, y, z + 0.5, self.yaw, self.pitch, on_ground=False
+                )
                 time.sleep(0.05)
                 # 0: interact, 1: attack, 2: interact
-                packet = PackVarInt(0x0d) + PackVarInt(entity) + PackVarInt(1)
+                packet = PackVarInt(0x0D) + PackVarInt(entity) + PackVarInt(1)
                 self.send(packet)
                 # animation
                 packet = PackVarInt(0x27) + PackVarInt(0)
                 self.send(packet)
                 # land?
                 time.sleep(0.05)
-                self.send_PlayerPositionAndLook(x, y, z, self.yaw, self.pitch, on_ground=True)
+                self.send_PlayerPositionAndLook(
+                    x, y, z, self.yaw, self.pitch, on_ground=True
+                )
 
     def respawn(self):
         self.send_ClientStatus(0)
@@ -65,6 +74,7 @@ class libmc(Handler, Sender):
 
     def follow(self, name, cmd):
         print("MCBot following:", name)
+
         def new_position(target, own, move=1):
             if int(target) > int(own):
                 val = own + move
@@ -87,7 +97,9 @@ class libmc(Handler, Sender):
                 if entity.is_name(name, partial=True):
                     own_pos = self.position
                     target_pos = entity.position
-                    x, y, z = [new_position(x[0], x[1]) for x in zip(target_pos, own_pos)]
+                    x, y, z = [
+                        new_position(x[0], x[1]) for x in zip(target_pos, own_pos)
+                    ]
 
                     # dont change height if within limit
                     if abs(y - self.position[1]) < 2:
@@ -101,10 +113,11 @@ class libmc(Handler, Sender):
 
                     # try to stick to land
                     elif target_pos[1] < own_pos[1]:
-                        self.send_PlayerPositionAndLook(own_pos[0], target_pos[1], own_pos[2], yaw, pitch)
+                        self.send_PlayerPositionAndLook(
+                            own_pos[0], target_pos[1], own_pos[2], yaw, pitch
+                        )
 
                     self.attack(entity.name)
-    
 
     def bot_command(self, command):
         command = command.strip()
@@ -116,9 +129,14 @@ class libmc(Handler, Sender):
             cmd, name = command.split(":")
             self.following = None
             time.sleep(0.3)
-            self.following = _thread.start_new_thread(self.follow, (name, cmd, ))
+            self.following = _thread.start_new_thread(
+                self.follow,
+                (
+                    name,
+                    cmd,
+                ),
+            )
             # _thread.start_new_thread(self.jiggle, (0, 0, ))
-                
 
     def run(self):
         print("MCBot running...")
@@ -140,7 +158,9 @@ class libmc(Handler, Sender):
                     packet = []
                     while len(packet) < length:
                         packet.append(self.recv(1)[0])
-                    assert len(packet) == length, "Length is somehow different! (%s != %s)" % (len(packet), length)
+                    assert (
+                        len(packet) == length
+                    ), "Length is somehow different! (%s != %s)" % (len(packet), length)
 
                     # Now that we have the packet handle it
                     try:

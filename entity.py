@@ -1,5 +1,7 @@
 """entity"""
-class Entity():
+
+
+class Entity:
     def __init__(self, uuid):
         self.id = None
         self.uuid = uuid
@@ -17,10 +19,9 @@ class Entity():
         if partial:
             return self.name.startswith(name)
         return self.name == name
-    
+
     def is_inrange(self, coords, distance):
         return True in [abs(x[0] - x[1]) < distance for x in zip(coords, self.position)]
-        
+
     def is_not_inrange(self, coords, distance):
         return True in [abs(x[0] - x[1]) > distance for x in zip(coords, self.position)]
-        
